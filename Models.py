@@ -1,6 +1,8 @@
 from orator import Model
 from orator.orm import has_one, has_many, belongs_to
 
+import json
+
 
 class User(Model):
     __table__ = 'Users'
@@ -16,6 +18,10 @@ class Revision(Model):
     @belongs_to('noteId')
     def note(self):
         return Note
+
+    @property
+    def authors(self):
+        return User.where_in('id', [author[0] for author in json.loads(self.authorship)]).get()
 
 
 class Note(Model):
