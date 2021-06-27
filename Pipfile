@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 orator = "*"
+gitpython = "*"
 
 [dev-packages]
 autopep8 = "*"
