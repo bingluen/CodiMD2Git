@@ -1,4 +1,4 @@
-from Models import Note, User
+from Models import Note
 
 from email_mapping import mapping as user_map
 
@@ -8,8 +8,10 @@ from orator import DatabaseManager, Model
 
 from argparse import ArgumentParser
 from os.path import exists
+from os import mkdir
 from pathlib import Path
 import re
+import shutil
 
 many_user_commit_message_template = """Change by many user
 
@@ -27,12 +29,26 @@ def write_patch(note_repo_dir, patches_text):
 
     # Apply diff to File
     dmp = dmp_module.diff_match_patch()
-    patches = dmp.patch_fromText(patches_text)
+    patches = dmp.patch_fromText(
+        re.sub(r'\/uploads', 'uploads', patches_text) if patches_text is not None else patches_text)
     new_content, _ = dmp.patch_apply(patches, content)
 
     # Write new content
     with open(Path(note_repo_dir).joinpath('README.md'), 'w') as md_file:
         md_file.write(new_content)
+
+
+def track_image(note_repo_dir, local_image_upload, index, patch_text):
+    images = re.findall(r'\/uploads\/([A-Za-z0-9_]+\.(jpe?g|png|gif))',
+                        patch_text, flags=re.I)
+
+    if not exists(Path(note_repo_dir).joinpath('uploads')):
+        mkdir(Path(note_repo_dir).joinpath('uploads'))
+
+    for img in images:
+        shutil.copyfile(Path(local_image_upload).joinpath(
+            img[0]), Path(note_repo_dir).joinpath('uploads').joinpath(img[0]))
+        index.add('uploads/%s' % img[0])
 
 
 if __name__ == '__main__':
@@ -47,6 +63,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--prefix', help='prefix of table name. default is \'\'', type=str)
     parser.add_argument('path', help='path to saving exported notes', type=str)
+    parser.add_argument('--local_image_upload',
+                        help='path which saving upload image', type=str)
 
     args = parser.parse_args()
 
@@ -81,8 +99,14 @@ if __name__ == '__main__':
         for revision in note.revisions:
             commit_author = None
             commit_message = None
+
             # Write change
             write_patch(note_repo_dir, revision.patch)
+
+            # Track image used in revision
+            if revision.patch is not None and args.local_image_upload is not None:
+                track_image(note_repo_dir, args.local_image_upload,
+                            index, revision.patch)
 
             # Set author
             authors = [user_map(user.email) for user in revision.authors]
