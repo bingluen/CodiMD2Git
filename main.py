@@ -12,6 +12,7 @@ from os import mkdir
 from pathlib import Path
 import re
 import shutil
+import sys
 
 many_user_commit_message_template = """Change by many user
 
@@ -46,9 +47,12 @@ def track_image(note_repo_dir, local_image_upload, index, patch_text):
         mkdir(Path(note_repo_dir).joinpath('uploads'))
 
     for img in images:
-        shutil.copyfile(Path(local_image_upload).joinpath(
-            img[0]), Path(note_repo_dir).joinpath('uploads').joinpath(img[0]))
-        index.add('uploads/%s' % img[0])
+        try:
+            shutil.copyfile(Path(local_image_upload).joinpath(
+                img[0]), Path(note_repo_dir).joinpath('uploads').joinpath(img[0]))
+            index.add('uploads/%s' % img[0])
+        except Exception as e:
+            print('%s image not exists skip it' % e.filename, file=sys.stderr)
 
 
 if __name__ == '__main__':
@@ -90,7 +94,7 @@ if __name__ == '__main__':
         'revisions': lambda q: q.order_by('createdAt', 'asc')
     }).get():
         note_repo_dir = Path(root_path).joinpath('%s_%s' %
-                                                 (re.sub('[\t\n\r \/]+', '_', note.title), note.owner.email.replace('@', '[at]')))
+                                                 (note.shortid, re.sub('[\t\n\r \/]+', '_', note.title)))
         note_repo = Repo.init(note_repo_dir)
         index = note_repo.index
 
@@ -116,7 +120,7 @@ if __name__ == '__main__':
             else:
                 commit_author = committer
                 commit_message = many_user_commit_message_template % ('\n'.join(
-                    ['Change by %s (%s)' % (author[1], author[0]) for author in authors]))
+                    ['Change by %s (%s)' % ('Anonymous' if author[1] is None else author[1], author[0]) for author in authors]))
 
             # Commit it
             index.add(['README.md'])
